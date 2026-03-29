@@ -1,140 +1,4 @@
 ============================================================
-static/js/main.js:
-document.addEventListener("DOMContentLoaded", () => {
-    // 1. Обработка уведомлений (flash messages)
-    const urlParams = new URLSearchParams(window.location.search);
-    const message = urlParams.get('message');
-    if (message) {
-        const flashDiv = document.getElementById('flash-message');
-        if (flashDiv) {
-            flashDiv.textContent = message;
-            flashDiv.style.display = 'block';
-        }
-        const cleanUrl = window.location.origin + window.location.pathname;
-        window.history.replaceState({}, '', cleanUrl);
-    }
-
-    // 2. Универсальный обработчик JSON-форм
-    const jsonForms = document.querySelectorAll('.js-json-form');
-    jsonForms.forEach(form => {
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const url = form.getAttribute('action');
-            const method = (form.getAttribute('data-method') || form.getAttribute('method') || 'POST').toUpperCase();
-
-            const formData = new FormData(form);
-            const data = {};
-            formData.forEach((value, key) => {
-                const input = form.elements[key];
-                if (input.type === 'number') data[key] = value ? Number(value) : null;
-                else if (input.type === 'checkbox') data[key] = input.checked;
-                else data[key] = value;
-            });
-
-            try {
-                const response = await fetch(url, {
-                    method: method,
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(data)
-                });
-                handleResponse(response);
-            } catch (error) {
-                console.error('Fetch error:', error);
-            }
-        });
-    });
-
-    // 3. Аккордеоны отелей (загрузка комнат)
-    document.querySelectorAll('.hotel-expandable').forEach(details => {
-        details.addEventListener('toggle', async () => {
-            if (details.open && !details.dataset.loaded) {
-                const hotelId = details.dataset.hotelId;
-                const container = details.querySelector('.rooms-container');
-                try {
-                    const response = await fetch(`/rooms/${hotelId}/rooms`);
-                    const rooms = await response.json();
-                    container.innerHTML = rooms.length ? renderRoomsTable(rooms) : '<p style="color: #94a3b8;">No rooms found.</p>';
-                    details.dataset.loaded = "true";
-                } catch (error) {
-                    container.innerHTML = '<p style="color: red;">Error loading rooms.</p>';
-                }
-            }
-        });
-    });
-});
-
-// --- Глобальные функции (вынесены из DOMContentLoaded для доступа через onclick) ---
-
-async function handleResponse(response) {
-    if (response.redirected) {
-        window.location.href = response.url;
-    } else {
-        const result = await response.json();
-        alert(result.detail || result.message || "Operation completed");
-        if (response.ok) window.location.reload();
-    }
-}
-
-async function deleteItem(url) {
-    if (!confirm('Are you sure?')) return;
-    try {
-        const response = await fetch(url, { method: 'DELETE' });
-        handleResponse(response);
-    } catch (e) { console.error(e); }
-}
-
-async function handleImageUpload() {
-    const hotelId = document.getElementById('upload_hotel_uuid').value;
-    const form = document.getElementById('uploadPhotoForm');
-    const fileInput = form.querySelector('input[type="file"]');
-
-    if (!hotelId || !fileInput.files[0]) {
-        alert("Please fill Hotel UUID and select an image");
-        return;
-    }
-
-    const formData = new FormData();
-    formData.append('image', fileInput.files[0]);
-
-    try {
-        const response = await fetch(`/hotels/image/${hotelId}`, {
-            method: 'POST',
-            body: formData // Content-Type браузер поставит сам для FormData
-        });
-        handleResponse(response);
-    } catch (e) { console.error(e); }
-}
-
-async function handleImageDelete() {
-    const hotelId = document.getElementById('delete_hotel_uuid').value;
-    if (!hotelId || !confirm('Delete image?')) return;
-
-    try {
-        const response = await fetch(`/hotels/image/${hotelId}`, { method: 'DELETE' });
-        handleResponse(response);
-    } catch (e) { console.error(e); }
-}
-
-function renderRoomsTable(rooms) {
-    let rows = rooms.map(room => `
-        <tr>
-            <td><span class="id-badge">${room.id}</span></td>
-            <td><strong>${room.number}</strong></td>
-            <td>${room.prestige}</td>
-            <td>$${room.fine}</td>
-            <td>
-                <span class="status-badge" style="background: ${room.is_available ? '#dcfce7' : '#fee2e2'}; color: ${room.is_available ? '#166534' : '#991b1b'};">
-                    ${room.is_available ? 'Available' : 'Occupied'}
-                </span>
-            </td>
-            <td>
-                <button class="btn-danger" style="width: auto; padding: 4px 10px; font-size: 0.75rem;" 
-                        onclick="deleteItem('/rooms/delete/${room.id}')">Delete</button>
-            </td>
-        </tr>
-    `).join('');
-    return `<table class="rooms-table"><thead><tr><th>ID</th><th>No.</th><th>Type</th><th>Price</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table>`;
-}============================================================
 templates/error.html:
 {% extends "layout.html" %}
 {% block content %}
@@ -153,147 +17,6 @@ templates/login.html:
 templates/admin.html:
 {% extends "layout.html" %}
 {% block content %}
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-
-    // 1. FLASH MESSAGES
-    const urlParams = new URLSearchParams(window.location.search);
-    const message = urlParams.get('message');
-    if (message) {
-        const flashDiv = document.getElementById('flash-message');
-        if (flashDiv) {
-            flashDiv.textContent = message;
-            flashDiv.style.display = 'block';
-        }
-        window.history.replaceState({}, '', window.location.pathname);
-    }
-
-    // 2. ОБРАБОТКА JSON-ФОРМ (Отели/Комнаты)
-    const jsonForms = document.querySelectorAll('.js-json-form');
-    jsonForms.forEach(form => {
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const url = form.getAttribute('action');
-            const method = (form.getAttribute('data-method') || form.getAttribute('method') || 'POST').toUpperCase();
-
-            const formData = new FormData(form);
-            const data = {};
-            formData.forEach((value, key) => {
-                const input = form.elements[key];
-                if (input.type === 'number') data[key] = value ? Number(value) : null;
-                else if (input.type === 'checkbox') data[key] = input.checked;
-                else data[key] = value;
-            });
-
-            console.log(`Sending ${method} to ${url}`, data);
-
-            try {
-                const response = await fetch(url, {
-                    method: method,
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(data)
-                });
-                await handleResponse(response);
-            } catch (error) {
-                console.error('Fetch error:', error);
-                alert("Ошибка соединения с сервером");
-            }
-        });
-    });
-
-    // 3. АККОРДЕОНЫ (ЗАГРУЗКА КОМНАТ)
-    document.querySelectorAll('.hotel-expandable').forEach(details => {
-        details.addEventListener('toggle', async () => {
-            if (details.open && !details.dataset.loaded) {
-                const hotelId = details.dataset.hotelId;
-                const container = details.querySelector('.rooms-container');
-                try {
-                    const response = await fetch(`/rooms/${hotelId}/rooms`);
-                    const rooms = await response.json();
-                    container.innerHTML = rooms.length ? renderRoomsTable(rooms) : '<p>No rooms.</p>';
-                    details.dataset.loaded = "true";
-                } catch (e) { container.innerHTML = 'Error.'; }
-            }
-        });
-    });
-});
-
-// --- ГЛОБАЛЬНЫЕ ФУНКЦИИ (Принудительно в window) ---
-
-window.handleResponse = async function(response) {
-    if (response.redirected) {
-        window.location.href = response.url;
-        return;
-    }
-    const result = await response.json();
-    if (response.ok) {
-        alert(result.message || "Успешно!");
-        window.location.reload();
-    } else {
-        alert("Ошибка: " + (result.detail || "Неизвестная ошибка"));
-    }
-};
-
-window.deleteItem = async function(url) {
-    if (!confirm('Удалить?')) return;
-    try {
-        const response = await fetch(url, { method: 'DELETE' });
-        await window.handleResponse(response);
-    } catch (e) { console.error(e); }
-};
-
-window.handleImageUpload = async function() {
-    const hotelId = document.getElementById('upload_hotel_uuid').value;
-    const fileInput = document.querySelector('#uploadPhotoForm input[type="file"]');
-
-    if (!hotelId || !fileInput.files[0]) {
-        alert("Введите UUID отеля и выберите файл!");
-        return;
-    }
-
-    const formData = new FormData();
-    formData.append('image', fileInput.files[0]);
-
-    console.log("Uploading image for hotel:", hotelId);
-
-    try {
-        const response = await fetch(`/hotels/image/${hotelId}`, {
-            method: 'POST',
-            body: formData
-        });
-        await window.handleResponse(response);
-    } catch (e) {
-        console.error("Upload error:", e);
-        alert("Ошибка при загрузке");
-    }
-};
-
-window.handleImageDelete = async function() {
-    const hotelId = document.getElementById('delete_hotel_uuid').value;
-    if (!hotelId) {
-        alert("Введите UUID отеля!");
-        return;
-    }
-    if (!confirm('Удалить фото отеля?')) return;
-
-    try {
-        const response = await fetch(`/hotels/image/${hotelId}`, { method: 'DELETE' });
-        await window.handleResponse(response);
-    } catch (e) { console.error(e); }
-};
-
-function renderRoomsTable(rooms) {
-    let rows = rooms.map(room => `
-        <tr>
-            <td><span class="id-badge">${room.id}</span></td>
-            <td>${room.number}</td>
-            <td>$${room.fine}</td>
-            <td><button class="btn-danger" onclick="deleteItem('/rooms/delete/${room.id}')">Delete</button></td>
-        </tr>
-    `).join('');
-    return `<table class="rooms-table"><tbody>${rows}</tbody></table>`;
-}
-</script>
 <style>
     .admin-container {
         width: 100%;
@@ -301,8 +24,6 @@ function renderRoomsTable(rooms) {
         margin: 0 auto;
         padding: 2rem;
     }
-
-    /* Стили аккордеона */
     .hotel-expandable {
         background: white;
         border-radius: 8px;
@@ -348,7 +69,6 @@ function renderRoomsTable(rooms) {
         border-top: 1px solid #f1f5f9;
     }
 
-    /* Таблицы комнат */
     .rooms-table {
         width: 100%;
         border-collapse: collapse;
@@ -385,7 +105,6 @@ function renderRoomsTable(rooms) {
         border-radius: 10px;
     }
 
-    /* Стили форм */
     .grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -470,8 +189,7 @@ function renderRoomsTable(rooms) {
                 <strong style="font-size: 1.1rem;">{{ hotel.name }}</strong>
                 <span>⭐ {{ hotel.rating }}</span>
             </div>
-            <button class="btn-danger" style="width: auto;"
-                    onclick="event.preventDefault(); deleteItem('/hotels/delete/{{ hotel.id }}')">
+            <button class="btn-danger" style="width: auto;" onclick="event.preventDefault(); deleteItem('/hotels/delete/{{ hotel.id }}')">
                 Delete Hotel
             </button>
         </summary>
@@ -517,6 +235,7 @@ function renderRoomsTable(rooms) {
                 <button type="submit" class="btn-warning">Update Hotel</button>
             </form>
         </div>
+
         <div class="card">
             <h3>Set Hotel Photo</h3>
             <form id="uploadPhotoForm">
@@ -591,7 +310,6 @@ templates/layout.html:
 </header>
 
 <main>
-    <div id="flash-message"></div>
     {% if message %}
     <div class="flash-alert" style="display: block;">{{ message }}</div>
     {% endif %}
@@ -688,9 +406,8 @@ templates/admin_login.html:
 
 {% block content %}
 <style>
-    /* Стили специально для админ-панели, чтобы визуально выделить её */
     .admin-login-container {
-        border-top: 4px solid #d32f2f; /* Красная линия сверху */
+        border-top: 4px solid #d32f2f;
         padding-top: 20px;
     }
 
@@ -698,7 +415,6 @@ templates/admin_login.html:
         color: #d32f2f;
     }
 
-    /* Делаем кнопку красной */
     .admin-login-container button {
         background-color: #d32f2f;
         border: none;
@@ -709,7 +425,6 @@ templates/admin_login.html:
         background-color: #b71c1c;
     }
 
-    /* Красная обводка инпутов при наведении */
     .admin-login-container input:focus {
         outline-color: #d32f2f;
         border-color: #d32f2f;
@@ -724,4 +439,328 @@ templates/admin_login.html:
         <button type="submit">Login as Admin</button>
     </form>
 </div>
-{% endblock %}
+{% endblock %}============================================================
+static/css/style.css:
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+    --primary-color: #4f46e5;
+    --secondary-color: #4338ca;
+    --background: #f8fafc;
+    --surface: #ffffff;
+    --text-main: #0f172a;
+    --text-muted: #64748b;
+    --danger: #ef4444;
+    --danger-hover: #dc2626;
+    --warning: #f59e0b;
+    --border-color: #e2e8f0;
+    --radius: 12px;
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --transition: all 0.2s ease-in-out;
+}
+
+body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: var(--background);
+    color: var(--text-main);
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    line-height: 1.5;
+}
+
+header {
+    background-color: var(--surface);
+    padding: 1rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: var(--shadow-sm);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.logo a {
+    color: var(--primary-color);
+    font-size: 1.5rem;
+    font-weight: 700;
+    text-decoration: none;
+    letter-spacing: -0.5px;
+}
+
+header nav {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+header a {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-weight: 500;
+    transition: var(--transition);
+}
+
+header a:hover {
+    color: var(--primary-color);
+}
+
+.nav-form {
+    display: inline;
+    margin: 0;
+}
+
+.btn-logout {
+    background: none;
+    border: none;
+    color: var(--danger);
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+    transition: var(--transition);
+}
+
+.btn-logout:hover {
+    color: var(--danger-hover);
+}
+
+main {
+    padding: 3rem 2rem;
+    max-width: 1200px;
+    width: 100%;
+    margin: 0 auto;
+    box-sizing: border-box;
+    flex-grow: 1;
+}
+
+h1, h2, h3, h4 {
+    color: var(--text-main);
+    margin-top: 0;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+    width: 100%;
+}
+
+.card {
+    background: var(--surface);
+    padding: 1.5rem;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+    transition: var(--transition);
+    border: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+}
+
+.card:hover {
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-3px);
+}
+
+.card h3 {
+    margin-bottom: 0.5rem;
+}
+
+.card p {
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+}
+
+.card img {
+    max-width: 100%;
+    border-radius: calc(var(--radius) - 4px);
+    margin-bottom: 1rem;
+    object-fit: cover;
+}
+
+form {
+    background: var(--surface);
+    padding: 2rem;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+    width: 100%;
+    max-width: 450px;
+    margin: 0 auto 2rem auto;
+    border: 1px solid var(--border-color);
+    box-sizing: border-box;
+}
+
+.card form {
+    padding: 0;
+    box-shadow: none;
+    border: none;
+    margin: 0;
+    margin-top: auto;
+}
+
+form label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-main);
+}
+
+form input, form textarea, form select {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.25rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-sizing: border-box;
+    font-family: inherit;
+    font-size: 1rem;
+    color: var(--text-main);
+    background-color: var(--background);
+    transition: var(--transition);
+}
+
+form input:focus, form textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+    background-color: var(--surface);
+}
+
+button {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    cursor: pointer;
+    width: 100%;
+    font-size: 1rem;
+    font-weight: 600;
+    transition: var(--transition);
+    display: inline-block;
+    text-align: center;
+}
+
+button:hover {
+    background-color: var(--secondary-color);
+    box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.4);
+}
+
+.btn-danger {
+    background-color: var(--danger);
+}
+
+.btn-danger:hover {
+    background-color: var(--danger-hover);
+    box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.4);
+}
+
+.btn-warning {
+    background-color: var(--warning);
+    color: white;
+}
+
+.btn-warning:hover {
+    background-color: #d97706;
+}
+
+#flash-message, .flash-alert {
+    display: none;
+    padding: 1rem 1.5rem;
+    margin-bottom: 2rem;
+    border-radius: 8px;
+    background-color: #dbeafe;
+    color: #1e3a8a;
+    border-left: 4px solid #3b82f6;
+    width: 100%;
+    box-sizing: border-box;
+    font-weight: 500;
+    box-shadow: var(--shadow-sm);
+    animation: slideIn 0.3s ease-out forwards;
+}
+
+@keyframes slideIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.admin-container {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.hotel-expandable {
+    background: var(--surface);
+    border-radius: var(--radius);
+    margin-bottom: 1.5rem;
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+    transition: var(--transition);
+}
+
+.hotel-expandable:hover {
+    box-shadow: var(--shadow-lg);
+}
+
+summary {
+    padding: 1.25rem 1.5rem;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    outline: none;
+    font-weight: 600;
+}
+
+summary:hover {
+    background-color: #f1f5f9;
+}
+
+.rooms-section {
+    padding: 1.5rem;
+    background-color: var(--background);
+    border-top: 1px solid var(--border-color);
+}
+
+.rooms-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-top: 1rem;
+    background: var(--surface);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border-color);
+}
+
+.rooms-table th {
+    text-align: left;
+    padding: 1rem;
+    background-color: #f8fafc;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.rooms-table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: middle;
+}
+
+.rooms-table tr:last-child td {
+    border-bottom: none;
+}
+
+main h2 {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
