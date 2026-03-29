@@ -1,0 +1,14 @@
+{% extends "layout.html" %}
+{% block content %}
+    <h2>My Bookings</h2>
+    <div class="grid">
+        {% for booking in data %}
+        <div class="card">
+            <h3>{{ booking.hotel_name }} - Room {{ booking.room_number }}</h3>
+            <p>In: {{ booking.check_in }}</p>
+            <p>Out: {{ booking.check_out }}</p>
+            <button class="danger" onclick="deleteItem('/bookings/cancel/{{ booking.id }}')">Cancel Booking</button>
+        </div>
+        {% endfor %}
+    </div>
+{% endblock %}

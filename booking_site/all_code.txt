@@ -1,0 +1,586 @@
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException
+from httpx import AsyncClient
+from starlette.requests import Request
+
+from booking_site.core.config import ROOM_PAGE
+from booking_site.core.utils import ac, auth_header, page, get_token, redirect
+from booking_site.rooms.schemas import RoomCreateSchema, RoomUpdateSchema
+
+rooms_router = APIRouter(prefix="/rooms", tags=["rooms"])
+
+
+@rooms_router.get("/room/{room_id}")
+async def room_page(request: Request, room_id: uuid.UUID, client: AsyncClient = Depends(ac)):
+    response = await client.get(f"/rooms/room/{room_id}")
+    if response.status_code == 200:
+        return page(request, ROOM_PAGE, data=response.json())
+    elif response.status_code == 404:
+        raise HTTPException(status_code=404, detail="Room not found")
+    raise HTTPException(status_code=500, detail="Unknown room load error")
+
+
+@rooms_router.post("/create")
+async def create_room(request: Request, room_r: RoomCreateSchema,
+                      auth_token: str = Depends(get_token), client: AsyncClient = Depends(ac)):
+    response = await client.post("/rooms/create", json=room_r.model_dump(mode="json"), headers=auth_header(auth_token))
+
+    if response.status_code == 201:
+        return redirect("/admin_page", message="Room created successfully")
+
+    elif response.status_code == 409:
+        return redirect("/admin_page", message="Room already exists")
+
+    elif response.status_code == 401:
+        return redirect("/auth/admin/login_page", message="Invalid admin credentials")
+
+    return redirect("/admin_page", message="Unknown room create error")
+
+
+@rooms_router.patch("/update")
+async def update_room(request: Request, room_r: RoomUpdateSchema,
+                      auth_token: str = Depends(get_token), client: AsyncClient = Depends(ac)):
+    response = await client.patch("/rooms/update", json=room_r.model_dump(mode="json"), headers=auth_header(auth_token))
+
+    if response.status_code == 200:
+        return redirect("/admin_page", message="Room update successfully")
+
+    elif response.status_code == 404:
+        return redirect("/admin_page", message="Room not found")
+
+    elif response.status_code == 401:
+        return redirect("/auth/admin/login_page", message="Invalid admin credentials")
+
+    return redirect("/admin_page", message="Unknown room update error")
+
+
+@rooms_router.delete("/delete/{room_id}")
+async def delete_room(request: Request, room_id: uuid.UUID, auth_token: str = Depends(get_token),
+                      client: AsyncClient = Depends(ac)):
+    response = await client.delete(f"/rooms/delete/{room_id}", headers=auth_header(auth_token))
+
+    if response.status_code == 200:
+        return redirect("/admin_page", message="Room delete successfully")
+
+    elif response.status_code == 404:
+        return redirect("/admin_page", message="Room not found")
+
+    elif response.status_code == 401:
+        return redirect("/auth/admin/login_page", message="Invalid admin credentials")
+
+    return redirect("/admin_page", message="Unknown room delete error")import uuid
+from datetime import datetime
+from typing import Tuple, List
+
+from pydantic import BaseModel, Field, ConfigDict
+
+
+class RoomCreateSchema(BaseModel):
+    number: int
+    prestige: str
+    fine: float
+
+    is_available: bool = Field(default=True)
+
+    hotel_id: uuid.UUID
+
+
+class RoomUpdateSchema(BaseModel):
+    id: uuid.UUID
+
+    prestige: str
+    fine: float
+
+    is_available: bool
+
+
+class RoomSimpleResponseSchema(RoomUpdateSchema):
+    number: int
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RoomFullResponseSchema(RoomSimpleResponseSchema):
+    booking_dates: List[Tuple[datetime, datetime]]import base64
+import uuid
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from httpx import AsyncClient
+from starlette.requests import Request
+
+from booking_site.core.config import HOTEL_DEFAULT_IMAGE, HOTELS_PAGE, HOTEL_PAGE
+from booking_site.core.utils import ac, auth_header, page, get_token, redirect
+from booking_site.hotels.schemas import HotelCreateSchema, HotelUpdateSchema
+
+hotels_router = APIRouter(prefix="/hotels", tags=["hotels"])
+
+
+@hotels_router.get("/view")
+async def hotels_page(request: Request, client: AsyncClient = Depends(ac)):
+    response = await client.get("/hotels/view")
+    if response.status_code == 200:
+        return page(request, HOTELS_PAGE, data=response.json())
+    raise HTTPException(status_code=500, detail="Unknown hotel load error")
+
+
+@hotels_router.get("/view/{hotel_id}")
+async def hotel_page(request: Request, hotel_id: uuid.UUID, client: AsyncClient = Depends(ac)):
+    response = await client.get(f"/hotels/view/{hotel_id}")
+    if response.status_code == 200:
+        image = await client.get(f"/hotels/image/{hotel_id}")
+        if image.status_code == 200:
+            return page(request, HOTEL_PAGE,
+                        data={"image": base64.b64encode(image.content).decode(), "hotel": response.json()})
+        else:
+            return page(request, HOTEL_PAGE, data={"image": HOTEL_DEFAULT_IMAGE, "hotel": response.json()})
+    elif response.status_code == 404:
+        raise HTTPException(status_code=404, detail="Hotel not found")
+    raise HTTPException(status_code=500, detail="Unknown hotel load error")
+
+
+@hotels_router.post("/create")
+async def create_hotel(request: Request, hotel_r: HotelCreateSchema,
+                       auth_token: str = Depends(get_token), client: AsyncClient = Depends(ac)):
+    response = await client.post("/hotels/create", json=hotel_r.model_dump(mode="json"),
+                                 headers=auth_header(auth_token))
+
+    if response.status_code == 201:
+        return redirect("/admin_page", message="Hotel created successfully")
+
+    elif response.status_code == 409:
+        return redirect("/admin_page", message="Hotel already exists")
+
+    elif response.status_code == 401:
+        return redirect("/admin_page", message="Invalid admin credentials")
+
+    return redirect("/admin_page", message="Unknown hotel create error")
+
+
+@hotels_router.patch("/update")
+async def update_hotel(request: Request, hotel_r: HotelUpdateSchema,
+                       auth_token: str = Depends(get_token), client: AsyncClient = Depends(ac)):
+    response = await client.patch("/hotels/update", json=hotel_r.model_dump(mode="json"),
+                                  headers=auth_header(auth_token))
+
+    if response.status_code == 200:
+        return redirect("/admin_page", message="Hotel updated successfully")
+
+    elif response.status_code == 404:
+        return redirect("/admin_page", message="Hotel not found")
+
+    elif response.status_code == 401:
+        return redirect("/auth/admin/login_page", message="Invalid admin credentials")
+
+    return redirect("/admin_page", message="Unknown hotel update error")
+
+
+@hotels_router.delete("/delete/{hotel_id}")
+async def delete_hotel(request: Request, hotel_id: uuid.UUID, auth_token: str = Depends(get_token),
+                       client: AsyncClient = Depends(ac)):
+    response = await client.delete(f"/hotels/delete/{hotel_id}", headers=auth_header(auth_token))
+
+    if response.status_code == 200:
+        return redirect("/admin_page", message="Hotel deleted successfully")
+
+    elif response.status_code == 404:
+        return redirect("/admin_page", message="Hotel not found")
+
+    elif response.status_code == 401:
+        return redirect("/auth/admin/login_page", message="Invalid admin credentials")
+
+    return redirect("/admin_page", message="Unknown hotel delete error")
+
+
+@hotels_router.post("/image/{hotel_id}")
+async def create_image(request: Request, hotel_id: uuid.UUID, image: UploadFile, auth_token: str = Depends(get_token),
+                       client: AsyncClient = Depends(ac)):
+    response = await client.post(f"/hotels/image/{hotel_id}",
+                                 files={"image": (image.filename, await image.read(), image.content_type)},
+                                 headers=auth_header(auth_token))
+
+    if response.status_code == 201:
+        return redirect("/admin_page", message="Hotel image created successfully")
+
+    elif response.status_code == 401:
+        return redirect("/auth/admin/login_page", message="Invalid admin credentials")
+
+    return redirect("/admin_page", message="Unknown hotel image create error")
+
+
+@hotels_router.delete("/image/{hotel_id}")
+async def delete_image(request: Request, hotel_id: uuid.UUID, auth_token: str = Depends(get_token),
+                       client: AsyncClient = Depends(ac)):
+    response = await client.delete(f"/hotels/image/{hotel_id}", headers=auth_header(auth_token))
+
+    if response.status_code == 200:
+        return redirect("/admin_page", message="Hotel image deleted successfully")
+
+    elif response.status_code == 404:
+        return redirect("/admin_page", message="Hotel image not found")
+
+    elif response.status_code == 401:
+        return redirect("/auth/admin/login_page", message="Invalid admin credentials")
+
+    return redirect("/admin_page", message="Unknown hotel image delete error")
+import uuid
+from typing import List
+
+from pydantic import BaseModel, ConfigDict
+
+from booking_site.rooms.schemas import RoomSimpleResponseSchema
+
+
+class HotelCreateSchema(BaseModel):
+    name: str
+    description: str
+    rating: int
+    country: str
+    city: str
+    street: str
+    house_number: str
+
+
+class HotelUpdateSchema(BaseModel):
+    id: uuid.UUID
+    description: str
+    rating: int
+
+
+class HotelSimpleResponseSchema(BaseModel):
+    id: uuid.UUID
+    name: str
+    description: str
+    rating: int
+    country: str
+    city: str
+    street: str
+    house_number: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class HotelFullResponseSchema(HotelSimpleResponseSchema):
+    rooms_schemas : List[RoomSimpleResponseSchema]
+from fastapi import APIRouter, Depends
+
+from httpx import AsyncClient
+from starlette.requests import Request
+
+from booking_site.auth.schemas import FormSchema
+from booking_site.core.config import REGISTER_PAGE, LOGIN_PAGE, ADMIN_LOGIN_PAGE
+from booking_site.core.utils import ac, auth_header, page, get_token, redirect
+
+auth_router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+@auth_router.get("/register_page")
+async def register_page(request: Request):
+    return page(request, REGISTER_PAGE)
+
+
+@auth_router.get("/login_page")
+async def login_page(request: Request):
+    return page(request, LOGIN_PAGE)
+
+
+@auth_router.post("/login")
+async def login(request: Request, data: FormSchema, client: AsyncClient = Depends(ac)):
+    api_response = await client.post("/auth/login", json=data.model_dump(mode="json"))
+    if api_response.status_code == 422:
+        return redirect("/auth/login_page",
+                        message="Invalid credentials format: username is empty or password less than 6 characters")
+    elif api_response.status_code == 401:
+        return redirect("/auth/login_page", message="Invalid credentials")
+    elif api_response.status_code != 200:
+        return redirect("/auth/login_page", message="Unknown server error, try again later")
+    response = redirect("/hotels/view")
+    response.set_cookie("auth_token", api_response.json()["access_token"], httponly=True)
+    return response
+
+
+@auth_router.post("/register")
+async def register(request: Request, data: FormSchema, client: AsyncClient = Depends(ac)):
+    api_response = await client.post("/auth/signup", json=data.model_dump(mode="json"))
+
+    if api_response.status_code == 409:
+        return redirect("/auth/register_page", message=f"User with username \"{data.username}\" already exists")
+
+    elif api_response.status_code == 422:
+        return redirect("/auth/register_page",
+                        message="Invalid credentials format: username is empty or password less than 6 characters")
+
+    elif api_response.status_code != 200:
+        return redirect("/auth/register_page", message="Unknown server error, try again later")
+
+    response = redirect("/", message="Registration successful!")
+
+    token = api_response.json().get("access_token")
+    response.set_cookie("auth_token", token, httponly=True)
+
+    return response
+
+
+@auth_router.post("/logout")
+async def logout(request: Request, auth_token: str = Depends(get_token), client: AsyncClient = Depends(ac)):
+    api_response = await client.post("/auth/logout", headers=auth_header(auth_token))
+
+    if api_response.status_code != 200:
+        return redirect("/auth/login_page", message="You should be authenticated before logout")
+
+    response = redirect("/", message="You have successfully logged out")
+
+    response.delete_cookie("auth_token")
+
+    return response
+
+
+@auth_router.post("/admin/login")
+async def admin_login(request: Request, data: FormSchema, client: AsyncClient = Depends(ac)):
+    api_response = await client.post("/auth/admin/login", json=data.model_dump(mode="json"))
+
+    if api_response.status_code == 422:
+        return redirect("/auth/admin/login_page",
+                        message="Invalid credentials format: username is empty or password less than 6 characters")
+
+    if api_response.status_code == 401:
+        return redirect("/auth/admin/login_page", message="Invalid credentials")
+
+    if api_response.status_code != 200:
+        return redirect("/auth/admin/login_page", message="Unknown server error, try again later")
+
+    response = redirect("/auth/admin/login_page")
+
+    token = api_response.json().get("access_token")
+    if token:
+        response.set_cookie("auth_token", token, httponly=True)
+
+    return response
+
+
+@auth_router.get("/admin/login_page")
+async def admin_login_page(request: Request):
+    return page(request, ADMIN_LOGIN_PAGE, message="Welcome, admin")
+from pydantic import BaseModel, Field
+
+class FormSchema(BaseModel):
+    username: str = Field(min_length=1, max_length=50)
+    password: str = Field(min_length=6, max_length=50)import logging
+import time
+
+import uvicorn
+from fastapi import FastAPI, HTTPException
+from httpx import TimeoutException
+from starlette import status
+from starlette.requests import Request
+from starlette.responses import RedirectResponse
+from starlette.staticfiles import StaticFiles
+
+import jinja2
+import python_multipart
+
+from booking_site.auth.router import auth_router
+from booking_site.bookings.router import booking_router
+from booking_site.core.config import ERROR_PAGE, HOME_PAGE, ADMIN_PAGE
+from booking_site.core.utils import page, redirect
+from booking_site.hotels.router import hotels_router
+from booking_site.rooms.router import rooms_router
+
+app = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+app.include_router(auth_router)
+app.include_router(hotels_router)
+app.include_router(rooms_router)
+app.include_router(booking_router)
+
+
+@app.get("/")
+async def home(request: Request):
+    return page(request, HOME_PAGE)
+
+@app.get("/admin_page")
+async def admin_page(request: Request):
+    return page(request, ADMIN_PAGE)
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+        return redirect("/auth/login")
+    elif exc.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT:
+        return redirect("/error_page", message=f"422 Unprocessable Entity: {exc.detail}")
+    elif exc.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR:
+        return redirect("/error_page", message=f"500 Internal Server Error: {exc.detail}")
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+@app.exception_handler(TimeoutException)
+async def timeout_exception_handler(request: Request, exc: TimeoutException):
+    logger.info("user redirected to error page")
+    return redirect("/error_page", message=f"500 Internal Server Error: Timeout")
+
+
+
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+
+    response = await call_next(request)
+
+    process_time = (time.time() - start_time) * 1000
+    formatted_process_time = "{0:.2f}ms".format(process_time)
+
+    logger.info(
+        f"Method: {request.method} | "
+        f"Path: {request.url.path} | "
+        f"Status: {response.status_code} | "
+        f"Duration: {formatted_process_time}"
+        f"Response: {response}"
+    )
+    return response
+
+
+@app.get("/error_page")
+async def error_page(request : Request, message: str):
+    return page(request, ERROR_PAGE, message)
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)import uuid
+
+from fastapi import APIRouter, Depends, HTTPException
+from httpx import AsyncClient
+from starlette.requests import Request
+
+from booking_site.bookings.schemas import BookingRequestSchema
+from booking_site.core.config import BOOKINGS_PAGE
+from booking_site.core.utils import get_token, ac, auth_header, page, redirect
+
+booking_router = APIRouter(prefix="/bookings", tags=["bookings"])
+
+
+@booking_router.get("/all")
+async def get_all_user_bookings(request: Request, token: str = Depends(get_token), client: AsyncClient = Depends(ac)):
+    response = await client.get("/bookings/all", headers=auth_header(token))
+
+    if response.status_code == 200:
+        return page(request, BOOKINGS_PAGE, data=response.json())
+
+    elif response.status_code == 401:
+        return redirect("/auth/login_page", message="Please authenticate to view your bookings")
+
+    raise HTTPException(status_code=500, detail="Unknown bookings get error")
+
+
+@booking_router.post("/book")
+async def book(booking_r: BookingRequestSchema, token: str = Depends(get_token),
+               client: AsyncClient = Depends(ac)):
+    response = await client.post("/bookings/book", headers=auth_header(token), json=booking_r.model_dump(mode="json"))
+
+    if response.status_code == 200:
+        return redirect("/bookings/all", message="Booking successful")
+
+    elif response.status_code == 401:
+        return redirect("/auth/login_page", message="Please authenticate to book a room")
+
+    return redirect("/bookings/all", message="Unknown bookings book error")
+
+
+@booking_router.delete("/cancel/{booking_id}")
+async def cancel_booking(booking_id: uuid.UUID, token: str = Depends(get_token), client: AsyncClient = Depends(ac)):
+    response = await client.delete(f"/bookings/cancel/{booking_id}", headers=auth_header(token))
+
+    if response.status_code == 200:
+        return redirect("/bookings/all", message="Booking cancelled successfully")
+
+    elif response.status_code == 401:
+        return redirect("/auth/login_page", message="Please authenticate to cancel bookings")
+
+    return redirect("/bookings/all", message="Unknown bookings cancel error")
+import uuid
+from datetime import datetime
+
+from pydantic import BaseModel
+
+
+class BookingRequestSchema(BaseModel):
+    room_id: uuid.UUID
+    check_in: datetime
+    check_out: datetime
+
+class BookingResponseSchema(BaseModel):
+    id: uuid.UUID
+    room_id : uuid.UUID
+    check_in: datetime
+    check_out: datetime
+    room_number : int
+    room_prestige : str
+    room_fine: float
+    hotel_name : str
+    hotel_id : uuid.UUID
+from typing import Any
+
+from fastapi import Depends, Cookie, HTTPException
+from httpx import AsyncClient
+from starlette import status
+from starlette.requests import Request
+from starlette.responses import RedirectResponse
+
+from booking_site.core.config import API_URL, oauth2_scheme, templates
+
+
+async def ac():
+    async with AsyncClient(base_url=API_URL) as client:
+        yield client
+
+
+def get_token(auth_token: str | None = Cookie()):
+    if auth_token is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    return auth_token
+
+
+def auth_header(token: str):
+    return {"Authorization": f"Bearer {token}"}
+
+
+def page(request: Request, name: str, message: str = "", data: Any = None):
+    return templates.TemplateResponse(name, {"request": request, "message": message, "data": data})
+
+
+def redirect(url: str, message: str = ""):
+    separator = "&" if "?" in url else "?"
+    return RedirectResponse(f"{url}{separator}message={message}", status_code=status.HTTP_303_SEE_OTHER)import base64
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+from fastapi.security import OAuth2PasswordBearer
+from starlette.templating import Jinja2Templates
+
+DEFAULT_IMAGE_PATH = "static/images/hotel-default.jpg"
+HOTEL_DEFAULT_IMAGE = ""
+
+if os.path.exists(DEFAULT_IMAGE_PATH):
+    with open(DEFAULT_IMAGE_PATH, "rb") as file:
+        HOTEL_DEFAULT_IMAGE = base64.b64encode(file.read()).decode()
+
+HOME_PAGE = "home.html"
+LOGIN_PAGE = "login.html"
+ADMIN_LOGIN_PAGE = "admin_login.html"
+ADMIN_PAGE = "admin.html"
+REGISTER_PAGE = "register.html"
+HOTEL_PAGE = "hotel.html"
+HOTELS_PAGE = "hotels.html"
+ROOM_PAGE = "room.html"
+BOOKINGS_PAGE = "bookings.html"
+ACCOUNT_INFO_PAGE = "account_info.html"
+ERROR_PAGE = "error.html"
+
+load_dotenv(dotenv_path=Path(__file__).parent.parent.parent / ".env")
+
+templates = Jinja2Templates(directory="templates")
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+
+API_URL = os.getenv("API_URL")

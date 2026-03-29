@@ -1,0 +1,271 @@
+{% extends "layout.html" %}
+{% block content %}
+<style>
+    .admin-container {
+        width: 100%;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+
+    /* Accordion styles */
+    .hotel-expandable {
+        background: white;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        border: 1px solid #e5e7eb;
+    }
+
+    summary {
+        padding: 1.2rem 1.5rem;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        outline: none;
+    }
+
+    summary:hover {
+        background-color: #f8fafc;
+    }
+
+    summary::after {
+        content: '▼';
+        font-size: 0.7rem;
+        color: var(--primary-color);
+        transition: transform 0.2s;
+    }
+
+    details[open] summary::after {
+        transform: rotate(180deg);
+    }
+
+    .hotel-header-info {
+        display: flex;
+        gap: 25px;
+        align-items: center;
+        flex-grow: 1;
+    }
+
+    .rooms-section {
+        padding: 1.5rem;
+        background-color: #fdfdfd;
+        border-top: 1px solid #f1f5f9;
+    }
+
+    /* Room tables */
+    .rooms-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+    }
+
+    .rooms-table th {
+        text-align: left;
+        padding: 10px;
+        border-bottom: 2px solid #f1f5f9;
+        color: #64748b;
+        font-size: 0.85rem;
+    }
+
+    .rooms-table td {
+        padding: 12px 10px;
+        border-bottom: 1px solid #f1f5f9;
+        vertical-align: middle;
+    }
+
+    .id-badge {
+        font-family: 'Monaco', 'Consolas', monospace;
+        font-size: 0.75rem;
+        background: #f1f5f9;
+        padding: 3px 6px;
+        border-radius: 4px;
+        color: #475569;
+    }
+
+    .status-badge {
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 4px 8px;
+        border-radius: 10px;
+    }
+
+    /* Form styles */
+    .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 20px;
+        width: 100%;
+    }
+
+    .card {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    form input[type="text"],
+    form input[type="number"],
+    form input[type="file"],
+    form textarea {
+        width: 100%;
+        padding: 10px;
+        margin-bottom: 15px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+    }
+
+    form input[type="file"] {
+        background-color: #f8fafc;
+        cursor: pointer;
+    }
+
+    button {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        width: 100%;
+        font-size: 1rem;
+    }
+
+    button:hover {
+        background-color: var(--secondary-color);
+    }
+
+    .btn-danger {
+        background-color: var(--danger);
+    }
+
+    .btn-danger:hover {
+        background-color: #dc2626;
+    }
+
+    .btn-warning {
+        background-color: #f59e0b;
+    }
+
+    .btn-warning:hover {
+        background-color: #d97706;
+    }
+</style>
+
+<div class="admin-container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        <div>
+            <h2 style="margin: 0;">Hotels Management</h2>
+            <p style="color: #64748b; margin: 5px 0 0 0;">Click on a hotel to manage its rooms.</p>
+        </div>
+        <a href="/auth/admin/login_page" style="text-decoration: none;">
+            <button type="button" class="btn-warning" style="width: auto; padding: 8px 20px; font-size: 0.9rem;">
+                👤 Login as Admin
+            </button>
+        </a>
+    </div>
+
+    {% for hotel in data %}
+    <details class="hotel-expandable" data-hotel-id="{{ hotel.id }}">
+        <summary>
+            <div class="hotel-header-info">
+                <span class="id-badge">ID: {{ hotel.id }}</span>
+                <strong style="font-size: 1.1rem;">{{ hotel.name }}</strong>
+                <span>⭐ {{ hotel.rating }}</span>
+            </div>
+            <button class="btn-danger" style="width: auto;" onclick="event.preventDefault(); deleteItem('/hotels/delete/{{ hotel.id }}')">
+                Delete Hotel
+            </button>
+        </summary>
+
+        <div class="rooms-section">
+            <p><strong>Description:</strong> {{ hotel.description }}</p>
+
+            <div class="rooms-container">
+                <p class="loading-text" style="color: #94a3b8;">Loading rooms...</p>
+            </div>
+        </div>
+    </details>
+    {% else %}
+    <div style="text-align: center; padding: 40px; background: white; border-radius: 8px;">
+        <p style="color: #64748b;">No hotels in the database.</p>
+    </div>
+    {% endfor %}
+
+    <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 3rem 0;">
+
+    <h3 style="margin-bottom: 1.5rem;">Management Actions</h3>
+    <div class="grid">
+        <div class="card">
+            <h3>Create New Hotel</h3>
+            <form action="/hotels/create" method="POST" class="js-json-form">
+                <input type="text" name="name" placeholder="Name" required>
+                <textarea name="description" placeholder="Description" required></textarea>
+                <input type="number" name="rating" placeholder="Rating (1-5)" min="1" max="5" required>
+                <input type="text" name="country" placeholder="Country" required>
+                <input type="text" name="city" placeholder="City" required>
+                <input type="text" name="street" placeholder="Street" required>
+                <input type="text" name="house_number" placeholder="House Number" required>
+                <button type="submit">Create Hotel</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h3>Update Hotel</h3>
+            <form action="/hotels/update" data-method="PATCH" class="js-json-form">
+                <input type="text" name="id" placeholder="Paste Hotel UUID" required>
+                <textarea name="description" placeholder="New Description" required></textarea>
+                <input type="number" name="rating" placeholder="New Rating (1-5)" min="1" max="5" required>
+                <button type="submit" class="btn-warning">Update Hotel</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h3>Set Hotel Photo</h3>
+            <form id="uploadPhotoForm">
+                <input type="text" id="upload_hotel_uuid" placeholder="Paste Hotel UUID" required>
+                <input type="file" name="image" accept="image/*" required>
+                <button type="button" onclick="handleImageUpload()">Upload Photo</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h3>Delete Hotel Photo</h3>
+            <form id="deletePhotoForm">
+                <input type="text" id="delete_hotel_uuid" placeholder="Paste Hotel UUID" required>
+                <button type="button" class="btn-danger" onclick="handleImageDelete()">Delete Photo</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h3>Create New Room</h3>
+            <form action="/rooms/create" method="POST" class="js-json-form">
+                <input type="text" name="hotel_id" placeholder="Parent Hotel UUID" required>
+                <input type="number" name="number" placeholder="Room Number" required>
+                <input type="text" name="prestige" placeholder="Prestige (Standard/Lux)" required>
+                <input type="number" name="fine" placeholder="Price" step="0.01" required>
+                <button type="submit">Create Room</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h3>Update Room</h3>
+            <form action="/rooms/update" data-method="PATCH" class="js-json-form">
+                <input type="text" name="id" placeholder="Paste Room UUID" required>
+                <input type="text" name="prestige" placeholder="New Prestige" required>
+                <input type="number" name="fine" placeholder="New Price" step="0.01" required>
+                <div style="text-align: left; margin-bottom: 15px;">
+                    <label style="cursor: pointer; color: #4b5563; display: inline-flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" name="is_available" style="margin: 0;" checked>
+                        <span>Room is available</span>
+                    </label>
+                </div>
+                <button type="submit" class="btn-warning">Update Room</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

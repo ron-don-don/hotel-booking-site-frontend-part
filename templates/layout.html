@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Booking BFF</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="/static/js/main.js" defer></script>
+</head>
+<body>
+<header>
+    <div class="logo"><a href="/">BookingApp</a></div>
+    <nav>
+        <a href="/hotels/view">Hotels</a>
+        <a href="/bookings/all">My Bookings</a>
+        <a href="/auth/login_page">Login</a>
+        <a href="/auth/register_page">Register</a>
+        <a href="/admin_page">Admin</a>
+        <form action="/auth/logout" method="POST" class="nav-form">
+            <button type="submit" class="btn-logout">Logout</button>
+        </form>
+    </nav>
+</header>
+
+<main>
+    {% if message %}
+    <div class="flash-alert" style="display: block;">{{ message }}</div>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+</main>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{% extends "layout.html" %}
+{% block content %}
+    <h2>Room Details</h2>
+    <h3>Book this room</h3>
+    <form action="/bookings/book" method="POST" class="js-json-form">
+        <input type="hidden" name="room_id" value="{{ data.id }}">
+        
+        <label>Check In:</label>
+        <input type="datetime-local" name="check_in" required>
+        
+        <label>Check Out:</label>
+        <input type="datetime-local" name="check_out" required>
+        
+        <button type="submit">Confirm Booking</button>
+    </form>
+{% endblock %}

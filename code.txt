@@ -1,0 +1,727 @@
+============================================================
+static/js/main.js:
+document.addEventListener("DOMContentLoaded", () => {
+    // 1. Обработка уведомлений (flash messages)
+    const urlParams = new URLSearchParams(window.location.search);
+    const message = urlParams.get('message');
+    if (message) {
+        const flashDiv = document.getElementById('flash-message');
+        if (flashDiv) {
+            flashDiv.textContent = message;
+            flashDiv.style.display = 'block';
+        }
+        const cleanUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState({}, '', cleanUrl);
+    }
+
+    // 2. Универсальный обработчик JSON-форм
+    const jsonForms = document.querySelectorAll('.js-json-form');
+    jsonForms.forEach(form => {
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const url = form.getAttribute('action');
+            const method = (form.getAttribute('data-method') || form.getAttribute('method') || 'POST').toUpperCase();
+
+            const formData = new FormData(form);
+            const data = {};
+            formData.forEach((value, key) => {
+                const input = form.elements[key];
+                if (input.type === 'number') data[key] = value ? Number(value) : null;
+                else if (input.type === 'checkbox') data[key] = input.checked;
+                else data[key] = value;
+            });
+
+            try {
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                handleResponse(response);
+            } catch (error) {
+                console.error('Fetch error:', error);
+            }
+        });
+    });
+
+    // 3. Аккордеоны отелей (загрузка комнат)
+    document.querySelectorAll('.hotel-expandable').forEach(details => {
+        details.addEventListener('toggle', async () => {
+            if (details.open && !details.dataset.loaded) {
+                const hotelId = details.dataset.hotelId;
+                const container = details.querySelector('.rooms-container');
+                try {
+                    const response = await fetch(`/rooms/${hotelId}/rooms`);
+                    const rooms = await response.json();
+                    container.innerHTML = rooms.length ? renderRoomsTable(rooms) : '<p style="color: #94a3b8;">No rooms found.</p>';
+                    details.dataset.loaded = "true";
+                } catch (error) {
+                    container.innerHTML = '<p style="color: red;">Error loading rooms.</p>';
+                }
+            }
+        });
+    });
+});
+
+// --- Глобальные функции (вынесены из DOMContentLoaded для доступа через onclick) ---
+
+async function handleResponse(response) {
+    if (response.redirected) {
+        window.location.href = response.url;
+    } else {
+        const result = await response.json();
+        alert(result.detail || result.message || "Operation completed");
+        if (response.ok) window.location.reload();
+    }
+}
+
+async function deleteItem(url) {
+    if (!confirm('Are you sure?')) return;
+    try {
+        const response = await fetch(url, { method: 'DELETE' });
+        handleResponse(response);
+    } catch (e) { console.error(e); }
+}
+
+async function handleImageUpload() {
+    const hotelId = document.getElementById('upload_hotel_uuid').value;
+    const form = document.getElementById('uploadPhotoForm');
+    const fileInput = form.querySelector('input[type="file"]');
+
+    if (!hotelId || !fileInput.files[0]) {
+        alert("Please fill Hotel UUID and select an image");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('image', fileInput.files[0]);
+
+    try {
+        const response = await fetch(`/hotels/image/${hotelId}`, {
+            method: 'POST',
+            body: formData // Content-Type браузер поставит сам для FormData
+        });
+        handleResponse(response);
+    } catch (e) { console.error(e); }
+}
+
+async function handleImageDelete() {
+    const hotelId = document.getElementById('delete_hotel_uuid').value;
+    if (!hotelId || !confirm('Delete image?')) return;
+
+    try {
+        const response = await fetch(`/hotels/image/${hotelId}`, { method: 'DELETE' });
+        handleResponse(response);
+    } catch (e) { console.error(e); }
+}
+
+function renderRoomsTable(rooms) {
+    let rows = rooms.map(room => `
+        <tr>
+            <td><span class="id-badge">${room.id}</span></td>
+            <td><strong>${room.number}</strong></td>
+            <td>${room.prestige}</td>
+            <td>$${room.fine}</td>
+            <td>
+                <span class="status-badge" style="background: ${room.is_available ? '#dcfce7' : '#fee2e2'}; color: ${room.is_available ? '#166534' : '#991b1b'};">
+                    ${room.is_available ? 'Available' : 'Occupied'}
+                </span>
+            </td>
+            <td>
+                <button class="btn-danger" style="width: auto; padding: 4px 10px; font-size: 0.75rem;" 
+                        onclick="deleteItem('/rooms/delete/${room.id}')">Delete</button>
+            </td>
+        </tr>
+    `).join('');
+    return `<table class="rooms-table"><thead><tr><th>ID</th><th>No.</th><th>Type</th><th>Price</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table>`;
+}============================================================
+templates/error.html:
+{% extends "layout.html" %}
+{% block content %}
+    <h1 style="color: var(--danger);">Error Occurred</h1>
+{% endblock %}============================================================
+templates/login.html:
+{% extends "layout.html" %}
+{% block content %}
+    <h2>Login</h2>
+    <form action="/auth/login" method="POST" class="js-json-form">
+        <input type="text" name="username" placeholder="Username" required>
+        <input type="password" name="password" placeholder="Password" required minlength="6">
+        <button type="submit">Login</button>
+    </form>
+{% endblock %}============================================================
+templates/admin.html:
+{% extends "layout.html" %}
+{% block content %}
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+
+    // 1. FLASH MESSAGES
+    const urlParams = new URLSearchParams(window.location.search);
+    const message = urlParams.get('message');
+    if (message) {
+        const flashDiv = document.getElementById('flash-message');
+        if (flashDiv) {
+            flashDiv.textContent = message;
+            flashDiv.style.display = 'block';
+        }
+        window.history.replaceState({}, '', window.location.pathname);
+    }
+
+    // 2. ОБРАБОТКА JSON-ФОРМ (Отели/Комнаты)
+    const jsonForms = document.querySelectorAll('.js-json-form');
+    jsonForms.forEach(form => {
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const url = form.getAttribute('action');
+            const method = (form.getAttribute('data-method') || form.getAttribute('method') || 'POST').toUpperCase();
+
+            const formData = new FormData(form);
+            const data = {};
+            formData.forEach((value, key) => {
+                const input = form.elements[key];
+                if (input.type === 'number') data[key] = value ? Number(value) : null;
+                else if (input.type === 'checkbox') data[key] = input.checked;
+                else data[key] = value;
+            });
+
+            console.log(`Sending ${method} to ${url}`, data);
+
+            try {
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                await handleResponse(response);
+            } catch (error) {
+                console.error('Fetch error:', error);
+                alert("Ошибка соединения с сервером");
+            }
+        });
+    });
+
+    // 3. АККОРДЕОНЫ (ЗАГРУЗКА КОМНАТ)
+    document.querySelectorAll('.hotel-expandable').forEach(details => {
+        details.addEventListener('toggle', async () => {
+            if (details.open && !details.dataset.loaded) {
+                const hotelId = details.dataset.hotelId;
+                const container = details.querySelector('.rooms-container');
+                try {
+                    const response = await fetch(`/rooms/${hotelId}/rooms`);
+                    const rooms = await response.json();
+                    container.innerHTML = rooms.length ? renderRoomsTable(rooms) : '<p>No rooms.</p>';
+                    details.dataset.loaded = "true";
+                } catch (e) { container.innerHTML = 'Error.'; }
+            }
+        });
+    });
+});
+
+// --- ГЛОБАЛЬНЫЕ ФУНКЦИИ (Принудительно в window) ---
+
+window.handleResponse = async function(response) {
+    if (response.redirected) {
+        window.location.href = response.url;
+        return;
+    }
+    const result = await response.json();
+    if (response.ok) {
+        alert(result.message || "Успешно!");
+        window.location.reload();
+    } else {
+        alert("Ошибка: " + (result.detail || "Неизвестная ошибка"));
+    }
+};
+
+window.deleteItem = async function(url) {
+    if (!confirm('Удалить?')) return;
+    try {
+        const response = await fetch(url, { method: 'DELETE' });
+        await window.handleResponse(response);
+    } catch (e) { console.error(e); }
+};
+
+window.handleImageUpload = async function() {
+    const hotelId = document.getElementById('upload_hotel_uuid').value;
+    const fileInput = document.querySelector('#uploadPhotoForm input[type="file"]');
+
+    if (!hotelId || !fileInput.files[0]) {
+        alert("Введите UUID отеля и выберите файл!");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('image', fileInput.files[0]);
+
+    console.log("Uploading image for hotel:", hotelId);
+
+    try {
+        const response = await fetch(`/hotels/image/${hotelId}`, {
+            method: 'POST',
+            body: formData
+        });
+        await window.handleResponse(response);
+    } catch (e) {
+        console.error("Upload error:", e);
+        alert("Ошибка при загрузке");
+    }
+};
+
+window.handleImageDelete = async function() {
+    const hotelId = document.getElementById('delete_hotel_uuid').value;
+    if (!hotelId) {
+        alert("Введите UUID отеля!");
+        return;
+    }
+    if (!confirm('Удалить фото отеля?')) return;
+
+    try {
+        const response = await fetch(`/hotels/image/${hotelId}`, { method: 'DELETE' });
+        await window.handleResponse(response);
+    } catch (e) { console.error(e); }
+};
+
+function renderRoomsTable(rooms) {
+    let rows = rooms.map(room => `
+        <tr>
+            <td><span class="id-badge">${room.id}</span></td>
+            <td>${room.number}</td>
+            <td>$${room.fine}</td>
+            <td><button class="btn-danger" onclick="deleteItem('/rooms/delete/${room.id}')">Delete</button></td>
+        </tr>
+    `).join('');
+    return `<table class="rooms-table"><tbody>${rows}</tbody></table>`;
+}
+</script>
+<style>
+    .admin-container {
+        width: 100%;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+
+    /* Стили аккордеона */
+    .hotel-expandable {
+        background: white;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        border: 1px solid #e5e7eb;
+    }
+
+    summary {
+        padding: 1.2rem 1.5rem;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        outline: none;
+    }
+
+    summary:hover {
+        background-color: #f8fafc;
+    }
+
+    summary::after {
+        content: '▼';
+        font-size: 0.7rem;
+        color: var(--primary-color);
+        transition: transform 0.2s;
+    }
+
+    details[open] summary::after {
+        transform: rotate(180deg);
+    }
+
+    .hotel-header-info {
+        display: flex;
+        gap: 25px;
+        align-items: center;
+        flex-grow: 1;
+    }
+
+    .rooms-section {
+        padding: 1.5rem;
+        background-color: #fdfdfd;
+        border-top: 1px solid #f1f5f9;
+    }
+
+    /* Таблицы комнат */
+    .rooms-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+    }
+
+    .rooms-table th {
+        text-align: left;
+        padding: 10px;
+        border-bottom: 2px solid #f1f5f9;
+        color: #64748b;
+        font-size: 0.85rem;
+    }
+
+    .rooms-table td {
+        padding: 12px 10px;
+        border-bottom: 1px solid #f1f5f9;
+        vertical-align: middle;
+    }
+
+    .id-badge {
+        font-family: 'Monaco', 'Consolas', monospace;
+        font-size: 0.75rem;
+        background: #f1f5f9;
+        padding: 3px 6px;
+        border-radius: 4px;
+        color: #475569;
+    }
+
+    .status-badge {
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 4px 8px;
+        border-radius: 10px;
+    }
+
+    /* Стили форм */
+    .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 20px;
+        width: 100%;
+    }
+
+    .card {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    form input[type="text"],
+    form input[type="number"],
+    form input[type="file"],
+    form textarea {
+        width: 100%;
+        padding: 10px;
+        margin-bottom: 15px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+    }
+
+    form input[type="file"] {
+        background-color: #f8fafc;
+        cursor: pointer;
+    }
+
+    button {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        width: 100%;
+        font-size: 1rem;
+    }
+
+    button:hover {
+        background-color: var(--secondary-color);
+    }
+
+    .btn-danger {
+        background-color: var(--danger);
+    }
+
+    .btn-danger:hover {
+        background-color: #dc2626;
+    }
+
+    .btn-warning {
+        background-color: #f59e0b;
+    }
+
+    .btn-warning:hover {
+        background-color: #d97706;
+    }
+</style>
+
+<div class="admin-container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        <div>
+            <h2 style="margin: 0;">Hotels Management</h2>
+            <p style="color: #64748b; margin: 5px 0 0 0;">Click on a hotel to manage its rooms.</p>
+        </div>
+        <a href="/auth/admin/login_page" style="text-decoration: none;">
+            <button type="button" class="btn-warning" style="width: auto; padding: 8px 20px; font-size: 0.9rem;">
+                👤 Login as Admin
+            </button>
+        </a>
+    </div>
+
+    {% for hotel in data %}
+    <details class="hotel-expandable" data-hotel-id="{{ hotel.id }}">
+        <summary>
+            <div class="hotel-header-info">
+                <span class="id-badge">ID: {{ hotel.id }}</span>
+                <strong style="font-size: 1.1rem;">{{ hotel.name }}</strong>
+                <span>⭐ {{ hotel.rating }}</span>
+            </div>
+            <button class="btn-danger" style="width: auto;"
+                    onclick="event.preventDefault(); deleteItem('/hotels/delete/{{ hotel.id }}')">
+                Delete Hotel
+            </button>
+        </summary>
+
+        <div class="rooms-section">
+            <p><strong>Description:</strong> {{ hotel.description }}</p>
+
+            <div class="rooms-container">
+                <p class="loading-text" style="color: #94a3b8;">Loading rooms...</p>
+            </div>
+        </div>
+    </details>
+    {% else %}
+    <div style="text-align: center; padding: 40px; background: white; border-radius: 8px;">
+        <p style="color: #64748b;">No hotels in the database.</p>
+    </div>
+    {% endfor %}
+
+    <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 3rem 0;">
+
+    <h3 style="margin-bottom: 1.5rem;">Management Actions</h3>
+    <div class="grid">
+        <div class="card">
+            <h3>Create New Hotel</h3>
+            <form action="/hotels/create" method="POST" class="js-json-form">
+                <input type="text" name="name" placeholder="Name" required>
+                <textarea name="description" placeholder="Description" required></textarea>
+                <input type="number" name="rating" placeholder="Rating (1-5)" min="1" max="5" required>
+                <input type="text" name="country" placeholder="Country" required>
+                <input type="text" name="city" placeholder="City" required>
+                <input type="text" name="street" placeholder="Street" required>
+                <input type="text" name="house_number" placeholder="House Number" required>
+                <button type="submit">Create Hotel</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h3>Update Hotel</h3>
+            <form action="/hotels/update" data-method="PATCH" class="js-json-form">
+                <input type="text" name="id" placeholder="Paste Hotel UUID" required>
+                <textarea name="description" placeholder="New Description" required></textarea>
+                <input type="number" name="rating" placeholder="New Rating (1-5)" min="1" max="5" required>
+                <button type="submit" class="btn-warning">Update Hotel</button>
+            </form>
+        </div>
+        <div class="card">
+            <h3>Set Hotel Photo</h3>
+            <form id="uploadPhotoForm">
+                <input type="text" id="upload_hotel_uuid" placeholder="Paste Hotel UUID" required>
+                <input type="file" name="image" accept="image/*" required>
+                <button type="button" onclick="handleImageUpload()">Upload Photo</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h3>Delete Hotel Photo</h3>
+            <form id="deletePhotoForm">
+                <input type="text" id="delete_hotel_uuid" placeholder="Paste Hotel UUID" required>
+                <button type="button" class="btn-danger" onclick="handleImageDelete()">Delete Photo</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h3>Create New Room</h3>
+            <form action="/rooms/create" method="POST" class="js-json-form">
+                <input type="text" name="hotel_id" placeholder="Parent Hotel UUID" required>
+                <input type="number" name="number" placeholder="Room Number" required>
+                <input type="text" name="prestige" placeholder="Prestige (Standard/Lux)" required>
+                <input type="number" name="fine" placeholder="Price" step="0.01" required>
+                <button type="submit">Create Room</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h3>Update Room</h3>
+            <form action="/rooms/update" data-method="PATCH" class="js-json-form">
+                <input type="text" name="id" placeholder="Paste Room UUID" required>
+                <input type="text" name="prestige" placeholder="New Prestige" required>
+                <input type="number" name="fine" placeholder="New Price" step="0.01" required>
+                <div style="text-align: left; margin-bottom: 15px;">
+                    <label style="cursor: pointer; color: #4b5563; display: inline-flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" name="is_available" style="margin: 0;" checked>
+                        <span>Room is available</span>
+                    </label>
+                </div>
+                <button type="submit" class="btn-warning">Update Room</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}============================================================
+templates/layout.html:
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Booking BFF</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="/static/js/main.js" defer></script>
+</head>
+<body>
+<header>
+    <div class="logo"><a href="/">BookingApp</a></div>
+    <nav>
+        <a href="/hotels/view">Hotels</a>
+        <a href="/bookings/all">My Bookings</a>
+        <a href="/auth/login_page">Login</a>
+        <a href="/auth/register_page">Register</a>
+        <a href="/admin_page">Admin</a>
+        <form action="/auth/logout" method="POST" class="nav-form">
+            <button type="submit" class="btn-logout">Logout</button>
+        </form>
+    </nav>
+</header>
+
+<main>
+    <div id="flash-message"></div>
+    {% if message %}
+    <div class="flash-alert" style="display: block;">{{ message }}</div>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+</main>
+</body>
+</html>============================================================
+templates/bookings.html:
+{% extends "layout.html" %}
+{% block content %}
+    <h2>My Bookings</h2>
+    <div class="grid">
+        {% for booking in data %}
+        <div class="card">
+            <h3>{{ booking.hotel_name }} - Room {{ booking.room_number }}</h3>
+            <p>In: {{ booking.check_in }}</p>
+            <p>Out: {{ booking.check_out }}</p>
+            <button class="danger" onclick="deleteItem('/bookings/cancel/{{ booking.id }}')">Cancel Booking</button>
+        </div>
+        {% endfor %}
+    </div>
+{% endblock %}============================================================
+templates/room.html:
+{% extends "layout.html" %}
+{% block content %}
+    <h2>Room Details</h2>
+    <h3>Book this room</h3>
+    <form action="/bookings/book" method="POST" class="js-json-form">
+        <input type="hidden" name="room_id" value="{{ data.id }}">
+        
+        <label>Check In:</label>
+        <input type="datetime-local" name="check_in" required>
+        
+        <label>Check Out:</label>
+        <input type="datetime-local" name="check_out" required>
+        
+        <button type="submit">Confirm Booking</button>
+    </form>
+{% endblock %}============================================================
+templates/hotels.html:
+{% extends "layout.html" %}
+{% block content %}
+    <h2>Available Hotels</h2>
+    <div class="grid">
+        {% for hotel in data %}
+        <div class="card">
+            <h3>{{ hotel.name }}</h3>
+            <p>{{ hotel.city }}, {{ hotel.country }}</p>
+            <p>Rating: {{ hotel.rating }} / 5</p>
+            <a href="/hotels/view/{{ hotel.id }}"><button>View Details</button></a>
+        </div>
+        {% endfor %}
+    </div>
+{% endblock %}============================================================
+templates/home.html:
+{% extends "layout.html" %}
+{% block content %}
+    <h1>Welcome to BookingApp</h1>
+    <p>Find the best hotels and rooms around the world.</p>
+{% endblock %}============================================================
+templates/hotel.html:
+{% extends "layout.html" %}
+{% block content %}
+    <h2>{{ data.hotel.name }}</h2>
+    <img src="data:image/jpeg;base64,{{ data.image }}" alt="Hotel Image" style="max-width: 400px;">
+    <p>{{ data.hotel.description }}</p>
+    <p><strong>Location:</strong> {{ data.hotel.country }}, {{ data.hotel.city }}, {{ data.hotel.street }} {{ data.hotel.house_number }}</p>
+
+    <h3>Rooms</h3>
+    <div class="grid">
+        {% for room in data.hotel.rooms_schemas %}
+        <div class="card">
+            <h4>Room #{{ room.number }}</h4>
+            <p>Prestige: {{ room.prestige }}</p>
+            <p>Fine: ${{ room.fine }}</p>
+            <a href="/rooms/room/{{ room.id }}"><button>Book Room</button></a>
+        </div>
+        {% endfor %}
+    </div>
+{% endblock %}============================================================
+templates/register.html:
+{% extends "layout.html" %}
+{% block content %}
+    <h2>Register</h2>
+    <form action="/auth/register" method="POST" class="js-json-form">
+        <input type="text" name="username" placeholder="Username" required>
+        <input type="password" name="password" placeholder="Password" required minlength="6">
+        <button type="submit">Sign Up</button>
+    </form>
+{% endblock %}============================================================
+templates/admin_login.html:
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+    /* Стили специально для админ-панели, чтобы визуально выделить её */
+    .admin-login-container {
+        border-top: 4px solid #d32f2f; /* Красная линия сверху */
+        padding-top: 20px;
+    }
+
+    .admin-login-container h2 {
+        color: #d32f2f;
+    }
+
+    /* Делаем кнопку красной */
+    .admin-login-container button {
+        background-color: #d32f2f;
+        border: none;
+        color: white;
+    }
+
+    .admin-login-container button:hover {
+        background-color: #b71c1c;
+    }
+
+    /* Красная обводка инпутов при наведении */
+    .admin-login-container input:focus {
+        outline-color: #d32f2f;
+        border-color: #d32f2f;
+    }
+</style>
+
+<div class="admin-login-container">
+    <h2>Admin Login</h2>
+    <form action="/auth/admin/login" method="POST" class="js-json-form">
+        <input type="text" name="username" placeholder="Admin Username" required>
+        <input type="password" name="password" placeholder="Password" required minlength="6">
+        <button type="submit">Login as Admin</button>
+    </form>
+</div>
+{% endblock %}

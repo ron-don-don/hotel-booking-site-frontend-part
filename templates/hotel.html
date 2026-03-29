@@ -1,0 +1,19 @@
+{% extends "layout.html" %}
+{% block content %}
+    <h2>{{ data.hotel.name }}</h2>
+    <img src="data:image/jpeg;base64,{{ data.image }}" alt="Hotel Image" style="max-width: 400px;">
+    <p>{{ data.hotel.description }}</p>
+    <p><strong>Location:</strong> {{ data.hotel.country }}, {{ data.hotel.city }}, {{ data.hotel.street }} {{ data.hotel.house_number }}</p>
+
+    <h3>Rooms</h3>
+    <div class="grid">
+        {% for room in data.hotel.rooms_schemas %}
+        <div class="card">
+            <h4>Room #{{ room.number }}</h4>
+            <p>Prestige: {{ room.prestige }}</p>
+            <p>Fine: ${{ room.fine }}</p>
+            <a href="/rooms/room/{{ room.id }}"><button>Book Room</button></a>
+        </div>
+        {% endfor %}
+    </div>
+{% endblock %}

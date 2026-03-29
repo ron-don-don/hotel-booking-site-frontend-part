@@ -1,0 +1,14 @@
+{% extends "layout.html" %}
+{% block content %}
+    <h2>Available Hotels</h2>
+    <div class="grid">
+        {% for hotel in data %}
+        <div class="card">
+            <h3>{{ hotel.name }}</h3>
+            <p>{{ hotel.city }}, {{ hotel.country }}</p>
+            <p>Rating: {{ hotel.rating }} / 5</p>
+            <a href="/hotels/view/{{ hotel.id }}"><button>View Details</button></a>
+        </div>
+        {% endfor %}
+    </div>
+{% endblock %}
