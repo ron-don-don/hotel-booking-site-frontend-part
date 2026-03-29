@@ -1,9 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
-    --primary-color: #4f46e5;      /* Современный индиго */
+    --primary-color: #4f46e5;
     --secondary-color: #4338ca;
-    --background: #f8fafc;         /* Мягкий светлый фон */
+    --background: #f8fafc;
     --surface: #ffffff;
     --text-main: #0f172a;
     --text-muted: #64748b;
@@ -11,7 +11,7 @@
     --danger-hover: #dc2626;
     --warning: #f59e0b;
     --border-color: #e2e8f0;
-    --radius: 12px;                /* Более мягкие углы */
+    --radius: 12px;
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
     --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
@@ -30,7 +30,6 @@ body {
     line-height: 1.5;
 }
 
-/* --- Навигация --- */
 header {
     background-color: var(--surface);
     padding: 1rem 2rem;
@@ -85,7 +84,6 @@ header a:hover {
     color: var(--danger-hover);
 }
 
-/* --- Основной контент --- */
 main {
     padding: 3rem 2rem;
     max-width: 1200px;
@@ -100,7 +98,6 @@ h1, h2, h3, h4 {
     margin-top: 0;
 }
 
-/* --- Карточки и Сетка --- */
 .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -140,7 +137,6 @@ h1, h2, h3, h4 {
     object-fit: cover;
 }
 
-/* --- Формы и Инпуты --- */
 form {
     background: var(--surface);
     padding: 2rem;
@@ -153,13 +149,12 @@ form {
     box-sizing: border-box;
 }
 
-/* Убираем стили формы, если она внутри карточки */
 .card form {
     padding: 0;
     box-shadow: none;
     border: none;
     margin: 0;
-    margin-top: auto; /* Прижимает кнопку к низу карточки */
+    margin-top: auto;
 }
 
 form label {
@@ -191,7 +186,6 @@ form input:focus, form textarea:focus {
     background-color: var(--surface);
 }
 
-/* --- Кнопки --- */
 button {
     background-color: var(--primary-color);
     color: white;
@@ -230,7 +224,6 @@ button:hover {
     background-color: #d97706;
 }
 
-/* --- Флеш-сообщения --- */
 #flash-message, .flash-alert {
     display: none;
     padding: 1rem 1.5rem;
@@ -251,7 +244,6 @@ button:hover {
     to { opacity: 1; transform: translateY(0); }
 }
 
-/* --- Таблицы админки --- */
 .admin-container {
     width: 100%;
     max-width: 1200px;

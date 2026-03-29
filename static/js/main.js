@@ -1,5 +1,4 @@
 document.addEventListener("DOMContentLoaded", () => {
-    // 1. Handle notifications (flash messages)
     const urlParams = new URLSearchParams(window.location.search);
     const message = urlParams.get('message');
     if (message) {
@@ -12,7 +11,6 @@ document.addEventListener("DOMContentLoaded", () => {
         window.history.replaceState({}, '', cleanUrl);
     }
 
-    // 2. Universal JSON form handler
     const jsonForms = document.querySelectorAll('.js-json-form');
     jsonForms.forEach(form => {
         form.addEventListener('submit', async (e) => {
@@ -43,7 +41,6 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
-    // 3. Hotel accordions (load rooms)
     document.querySelectorAll('.hotel-expandable').forEach(details => {
         details.addEventListener('toggle', async () => {
             if (details.open && !details.dataset.loaded) {
@@ -62,7 +59,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 });
 
-// --- Global functions (extracted from DOMContentLoaded for onclick access) ---
 
 async function handleResponse(response) {
     if (response.redirected) {
@@ -70,7 +66,6 @@ async function handleResponse(response) {
     } else {
         let result = {};
         try {
-            // Safe parsing in case the server returns a 200 OK with no body after image upload
             result = await response.json();
         } catch (e) {
             console.warn("Could not parse JSON response");
@@ -105,7 +100,7 @@ window.handleImageUpload = async function() {
     try {
         const response = await fetch(`/hotels/image/${hotelId}`, {
             method: 'POST',
-            body: formData // The browser will set the Content-Type automatically for FormData
+            body: formData
         });
         handleResponse(response);
     } catch (e) {
